@@ -69,7 +69,7 @@ public class EnemySpawner
 }
 ```
 
-This will not work however, since in our case the Enemy class requires a reference to the Player class in its constructor.  We could add a dependency to the Player class to the EnemySpawner class, but then we have the problem described <a href="#theory">above</a>.  The EnemySpawner class doesn't care about filling in the dependencies for the Enemy class.  All the EnemySpawner class cares about is getting a new Enemy instance.
+This will not work however, since in our case the Enemy class requires a reference to the Player class in its constructor.  We could add a dependency to the Player class to the EnemySpawner class, but then we have the problem described <a href="../README.md#theory">above</a>.  The EnemySpawner class doesn't care about filling in the dependencies for the Enemy class.  All the EnemySpawner class cares about is getting a new Enemy instance.
 
 The recommended way to do this in Zenject is the following:
 
@@ -115,7 +115,7 @@ public class TestInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<EnemySpawner>().To<EnemySpawner>().AsSingle();
+        Container.BindInterfacesTo<EnemySpawner>().AsSingle();
         Container.Bind<Player>().AsSingle();
         Container.BindFactory<Enemy, Enemy.Factory>();
     }
@@ -165,7 +165,7 @@ public class TestInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<EnemySpawner>().To<EnemySpawner>().AsSingle();
+        Container.BindInterfacesTo<EnemySpawner>().AsSingle();
         Container.Bind<Player>().AsSingle();
         Container.BindFactory<float, Enemy, Enemy.Factory>();
     }
@@ -173,6 +173,10 @@ public class TestInstaller : MonoInstaller
 ```
 
 The dynamic parameters that are provided to the Enemy constructor are declared by using generic arguments to the Factory<> base class of Enemy.Factory.  This will add a method to Enemy.Factory that takes the parameters with the given types, which is called by EnemySpawner.
+
+Note: You can have multiple parameters declared with the same type.  In this case, the order that the values are given to the factory will match the parameter order - assuming that you are using constructor or method injection.  However, if you are using field or property injection, then the order that values are injected is not guaranteed to follow the declaration order, since these fields are retrieved using Type.GetFields which does not guarantee order as described <a href="https://msdn.microsoft.com/en-us/library/ch9714z3.aspx">here</a>
+
+In this case, they will be injected in the same order that they are declared in your class.  In the case of constructor/inject-method parameters, this will be the order the parameters are given in, or in the case of fields the order will be from top to bottom that they are declared in.  Constructor parameters are processed first, then fields, then properties, then inject methods.
 
 There is no requirement that the `Enemy.Factory` class be a nested class within Enemy, however we have found this to be a very useful convention.  `Enemy.Factory` is always intentionally left empty and simply derives from the built-in Zenject `Factory<>` class, which handles the work of using the DiContainer to construct a new instance of Enemy.
 
@@ -207,9 +211,9 @@ public class TestInstaller : MonoInstaller
 
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<EnemySpawner>().To<EnemySpawner>().AsSingle();
+        Container.BindInterfacesTo<EnemySpawner>().AsSingle();
         Container.Bind<Player>().AsSingle();
-        Container.BindFactory<Enemy, Enemy.Factory>().FromPrefab(EnemyPrefab);
+        Container.BindFactory<Enemy, Enemy.Factory>().FromComponentInNewPrefab(EnemyPrefab);
     }
 }
 
@@ -218,6 +222,8 @@ public class TestInstaller : MonoInstaller
 And similarly for FromInstance, FromMethod, FromSubContainerResolve, or any of the other construction methods.
 
 Using FromSubContainerResolve can be particularly useful if your dynamically created object has a lot of its own dependencies.  You can have it behave like a Facade.  See the Subcontainers section for details on nested containers / facades.
+
+Also note that you for dynamically instantiated MonoBehaviours (for example when using FromComponentInNewPrefab with BindFactory) injection should always occur before Awake and Start, so you can use Awake and Start for initialization logic and use the inject method strictly for saving dependencies (ie. similar to constructors for non-monobehaviours)
 
 ## <a id="abstract-factories"></a>Abstract Factories
 
@@ -275,7 +281,7 @@ public class GameInstaller : MonoInstaller
 
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameController>().To<GameController>().AsSingle();
+        Container.BindInterfacesTo<GameController>().AsSingle();
 
         if (UseAStar)
         {
@@ -293,7 +299,7 @@ public class GameInstaller : MonoInstaller
 
 *Ok, but what if I don't know what type I want to create until after the application has started?  Or what if I have special requirements for constructing instances of the Enemy class that are not covered by any of the construction methods?* 
 
-In these cases you can create a custom factory, and directly call `new Enemy` or directly use the `DiContainer` class to create your object.  For example, continuing the previous factory example, let's say that you wanted to be able to change a runtime value (difficulty) that determines what kinds of enemies get created.
+In these cases you can create a custom factory, and directly call `new Enemy` or directly use the <a href="../README.md#dicontainer-methods">methods on DiContainer</a> to create your object.  For example, continuing the previous factory example, let's say that you wanted to be able to change a runtime value (difficulty) that determines what kinds of enemies get created.
 
 ```csharp
 public enum Difficulties
@@ -369,7 +375,7 @@ public class TestInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameController>().To<GameController>().AsSingle();
+        Container.BindInterfacesTo<GameController>().AsSingle();
         Container.Bind<DifficultyManager>().AsSingle();
         Container.BindFactory<IEnemy, EnemyFactory>().FromFactory<CustomEnemyFactory>();
     }
@@ -413,3 +419,44 @@ public class CustomEnemyFactory : IFactory<IEnemy>, IValidatable
 ```
 
 This is done by implementing the interface `IValidatable` and then adding a `Validate()` method.  Then, to manually validate objects, you simply instantiate them.  Note that this will not actually instantiate these objects (these calls actually return null here).  The point is to do a "dry run" without actually instantiating anything, to prove out the full object graph.  For more details on validation see the validation section.
+
+## <a id="custom-interface"></a>Custom Factory Interface
+
+In some cases, you might want to avoid becoming directly coupled to the factory class, and would prefer to use a base class or an interface instead.  You can do that by using the `BindFactoryContract` method instead of `BindFactory` like this:
+
+```
+public interface IMyFooFactory : IFactory<Foo>
+{
+}
+
+public class Foo
+{
+    public class Factory : Factory<Foo>, IMyFooFactory
+    {
+    }
+}
+
+public class Runner : IInitializable
+{
+    readonly IMyFooFactory _fooFactory;
+
+    public Runner(IMyFooFactory fooFactory)
+    {
+        _fooFactory = fooFactory;
+    }
+
+    public void Initialize()
+    {
+        var foo = _fooFactory.Create();
+        // ...
+    }
+}
+
+public class FooInstaller : MonoInstaller<FooInstaller>
+{
+    public override void InstallBindings()
+    {
+        Container.BindFactoryContract<Foo, IMyFooFactory, Foo.Factory>();
+    }
+}
+```

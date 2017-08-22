@@ -5,7 +5,7 @@ In some cases it can be very useful to use multiple containers in the same appli
 
 Another example might be if you are designing an open-world space ship game, you might want each space ship to have it's own container that contains all the class instances responsible for running that specific spaceship.
 
-This is actually how global bindings work.  There is one global container for the entire application, and when a unity scene starts up, it creates a new sub-container "underneath" the global container.  All the bindings that you add in your scene MonoInstaller are bound to your sub-container.  This allows the dependencies in your scene to automatically get injected with global bindings, because sub-containers automatically inherit all the bindings in its parent (and grandparent, etc.).
+This is actually how ProjectContext bindings work.  There is one container for the entire project, and when a unity scene starts up, it container within each SceneContext is created "underneath" the ProjectContext container.  All the bindings that you add in your scene MonoInstaller are bound to your SceneContext container.  This allows the dependencies in your scene to automatically get injected with ProjectContext bindings, because sub-containers automatically inherit all the bindings in their parent (and grandparent, etc.).
 
 A common design pattern that we like to use in relation to sub-containers is the <a href="https://en.wikipedia.org/wiki/Facade_pattern">Facade pattern</a>.  This pattern is used to abstract away a related group of dependencies so that it can be used at a higher level when used by other modules in the code base.  This is relevant here because often when you are defining sub-containers in your application it is very useful to also define a Facade class that is used to interact with this sub-container as a whole.  So, to apply it to the spaceship example above, you might have a SpaceshipFacade class that represents very high-level operations on a spaceship such as "Start Engine", "Take Damage", "Fly to destination", etc.  And then internally, the SpaceshipFacade class can delegate the specific handling of all the parts of these requests to the relevant single-responsibility dependencies that exist within the sub-container.
 
@@ -48,7 +48,7 @@ public class TestInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameController>().To<GameController>().AsSingle();
+        Container.BindInterfacesTo<GameController>().AsSingle();
         Container.Bind<Greeter>().FromSubContainerResolve().ByMethod(InstallGreeter).AsSingle();
     }
 
@@ -62,9 +62,9 @@ public class TestInstaller : MonoInstaller
 
 The important thing to understand here is that any bindings that we add inside the `InstallGreeter` method will only be visible to objects within this sub-container.  The only exception is the Facade class (in this case, Greeter) since it is bound to the parent container using the FromSubContainerResolve binding.  In other words, in this example, the string "Hello World" is only visible by the Greeter class.
 
-Note that you should always add a bind statement for whatever class is given to FromSubContainerResolve, otherwise this will fail.
+Note that you should always add a bind statement for whatever class is given to FromSubContainerResolve within the sub-container install method - otherwise you'll get exceptions and validation will fail.
 
-Note also that it is often better to use `ByInstaller` instead of `ByMethod`.  This is because when you use `ByMethod` it is easy to accidentally reference the Container instead of the subContainer.  Also, by using `ByInstaller` you can pass arguments into the Installer itself.
+Note also that unlike the above example, it is often better to use `ByInstaller` instead of `ByMethod`.  This is because when you use `ByMethod` it is easy to accidentally reference the Container instead of the subContainer.  Also, by using `ByInstaller` you can pass arguments into the Installer itself.
 
 ## <a id="using-tickables-within-sub-containers"></a>Using IInitializable / ITickable / IDisposable within Sub-Containers
 
@@ -106,8 +106,8 @@ public class TestInstaller : MonoInstaller
     {
         subContainer.Bind<Greeter>().AsSingle();
 
-        subContainer.BindAllInterfaces<GoodbyeHandler>().To<GoodbyeHandler>().AsSingle();
-        subContainer.BindAllInterfaces<HelloHandler>().To<HelloHandler>().AsSingle();
+        subContainer.BindInterfacesTo<GoodbyeHandler>().AsSingle();
+        subContainer.BindInterfacesTo<HelloHandler>().AsSingle();
     }
 }
 ```
@@ -143,16 +143,16 @@ public class TestInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfacesAndSelf<Greeter>()
-            .To<Greeter>().FromSubContainerResolve().ByMethod(InstallGreeter).AsSingle().NonLazy();
+        Container.BindInterfacesAndSelfTo<Greeter>()
+            .FromSubContainerResolve().ByMethod(InstallGreeter).AsSingle().NonLazy();
     }
 
     void InstallGreeter(DiContainer subContainer)
     {
         subContainer.Bind<Greeter>().AsSingle();
 
-        subContainer.BindAllInterfaces<GoodbyeHandler>().To<GoodbyeHandler>().AsSingle();
-        subContainer.BindAllInterfaces<HelloHandler>().To<HelloHandler>().AsSingle();
+        subContainer.BindInterfacesTo<GoodbyeHandler>().AsSingle();
+        subContainer.BindInterfacesTo<HelloHandler>().AsSingle();
     }
 }
 
@@ -160,11 +160,11 @@ public class TestInstaller : MonoInstaller
 
 Now if we run it, we should see the Hello message, then if we stop playing we should see the Goodbye message.
 
-The reason this works is because we are now binding IInitializable, IDisposable, and ITickable on the root container to the Greeter class given by `Container.BindAllInterfacesAndSelf<Greeter>().To<Greeter>()`.  Greeter now inherits from Kernel, which inherits from all these interfaces and also handles forwarding these calls to the IInitializable's / ITickable's / IDisposable's in our sub container.  Note that we use AsSingle() here, which is important otherwise it will create a new sub-container for every interface which is not what we want.
+The reason this works is because we are now binding IInitializable, IDisposable, and ITickable on the root container to the Greeter class given by `Container.BindInterfacesAndSelfTo<Greeter>()`.  Greeter now inherits from Kernel, which inherits from all these interfaces and also handles forwarding these calls to the IInitializable's / ITickable's / IDisposable's in our sub container.  Note that we use AsSingle() here, which is important otherwise it will create a new sub-container for every interface which is not what we want.
 
 ## <a id="using-game-object-contexts"></a>Creating Sub-Containers on GameObject's by using Game Object Context
 
-Another issue with the <a href="#hello-world-for-facades">sub-container hello world example</a> above is that it does not work very well for MonoBehaviour classes.  There is nothing preventing us from adding MonoBehaviour bindings such as FromPrefab, FromGameObject, etc. to our sub-container, however these will cause these new game objects to be added to the root of the scene heirarchy, so we'll have to manually track the lifetime of these objects ourselves by calling GameObject.Destroy on them when the Facade is destroyed.  Also, there is no way to have GameObject's that exist in our scene at the start but also exist within our sub-container.  These problems can be solved by using Game Object Context.
+Another issue with the <a href="#hello-world-for-facades">sub-container hello world example</a> above is that it does not work very well for MonoBehaviour classes.  There is nothing preventing us from adding MonoBehaviour bindings such as FromComponentInNewPrefab, FromNewComponentOnNewGameObject, etc. to our sub-container, however these will cause these new game objects to be added to the root of the scene heirarchy, so we'll have to manually track the lifetime of these objects ourselves by calling GameObject.Destroy on them when the Facade is destroyed.  Also, there is no way to have GameObject's that exist in our scene at the start but also exist within our sub-container.  These problems can be solved by using Game Object Context.
 
 For this example, let's try to actually implement something similar to the open world space ship game described in <a href="#sub-containers-and-facades">the sub-container introduction</a>:
 
@@ -220,7 +220,7 @@ public class GameInstaller : MonoInstaller
 {
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameRunner>().To<GameRunner>().AsSingle();
+        Container.BindInterfacesTo<GameRunner>().AsSingle();
     }
 }
 ```
@@ -281,7 +281,7 @@ public class ShipInputHandler : MonoBehaviour
 * Add new game object under ship called HealthHandler, and add the `ShipHealthHandler` component to it
 * Your scene should look like this:
 
-<img src="../UnityProject/Assets/Zenject/Documentation/ShipFacadeExample1.png?raw=true" alt="Ship Facade Example"/>
+<img src="../UnityProject/Assets/Plugins/Zenject/Documentation/ShipFacadeExample1.png?raw=true" alt="Ship Facade Example"/>
 
 * The idea here is that everything at or underneath the Ship game object should be considered inside it's own sub-container.  When we're done, we should be able to add multiple ships to our scene, each with their own components ShipHealthHandler, ShipInputHandler, etc. that can treat each other as singletons.
 * Try to validate your scene by pressing CTRL+SHIFT+V.  You should get an error that looks like this: `Unable to resolve type 'ShipHealthHandler' while building object with type 'Ship'.`
@@ -303,7 +303,7 @@ Also note that we can add installers to our ship sub-container in the same way t
 Continuing with the ship example <a href="#using-game-object-contexts">above</a>, let's pretend that we now want to create ships dynamically, after the game has started.
 
 * First, create a prefab for the entire `Ship` GameObject that we created above and then delete it from the Scene.
-* Then just change 
+* Then just add the following changes
 
 ```csharp
 public class GameRunner : ITickable
@@ -338,9 +338,9 @@ public class GameInstaller : MonoInstaller
 
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameRunner>().To<GameRunner>().AsSingle();
+        Container.BindInterfacesTo<GameRunner>().AsSingle();
 
-        Container.BindFactory<Ship, Ship.Factory>().FromSubContainerResolve().ByPrefab(ShipPrefab);
+        Container.BindFactory<Ship, Ship.Factory>().FromSubContainerResolve().ByNewPrefab(ShipPrefab);
     }
 }
 ```
@@ -387,9 +387,9 @@ public class GameInstaller : MonoInstaller
 
     public override void InstallBindings()
     {
-        Container.BindAllInterfaces<GameRunner>().To<GameRunner>().AsSingle();
+        Container.BindInterfacesTo<GameRunner>().AsSingle();
 
-        Container.BindFactory<float, Ship, Ship.Factory>().FromSubContainerResolve().ByPrefab<ShipInstaller>(ShipPrefab);
+        Container.BindFactory<float, Ship, Ship.Factory>().FromSubContainerResolve().ByNewPrefab<ShipInstaller>(ShipPrefab);
     }
 }
 ```
@@ -494,5 +494,5 @@ public class ShipInstaller : MonoInstaller
 
 This way, you can drop the Ship prefab into the scene and control the speed in the inspector, but you can also create them dynamically and pass the speed into the factory as a parameter.
 
-For a more real-world example see the "Sample2" demo project which makes heavy use of Game Object Contexts.
+For a more real-world example see the SpaceFighter sample project which makes heavy use of Game Object Contexts.
 

@@ -175,7 +175,7 @@ public class TestLogger : ZenjectUnitTestFixture
 
 ### Integration Testss
 
-Integration tests, on the other hand, are executed in a similar environment to the scenes in your project.  A `SceneContext` and `ProjectContext` are created, so you can invoke MonoInstallers, ScriptableObjectInstallers, etc. as necessary.
+Integration tests, on the other hand, are executed in a similar environment to the scenes in your project.  Unlike ZenjectUnitTestFixture, a `SceneContext` and `ProjectContext` are created for each test, so your code will run in similar way that it would normally.  For example, any bindings to IInitializable and IDisposable will be executed how you expect.
 
 Let's pull from the included sample project and test one of the classes there (AsteroidManager):
 
@@ -189,8 +189,8 @@ public class TestAsteroidManager : ZenjectIntegrationTestFixture
         GameSettingsInstaller.InstallFromResource(Container);
         var gameSettings = Container.Resolve<GameInstaller.Settings>();
         Container.Bind<AsteroidManager>().AsSingle();
-        Container.BindFactory<Asteroid, Asteroid.Factory>().FromPrefab(gameSettings.AsteroidPrefab);
-        Container.Bind<Camera>().WithId("Main").FromGameObject();
+        Container.BindFactory<Asteroid, Asteroid.Factory>().FromComponentInNewPrefab(gameSettings.AsteroidPrefab);
+        Container.Bind<Camera>().WithId("Main").FromNewComponentOnNewGameObject().AsSingle();
         Container.Bind<LevelHelper>().AsSingle();
 
         Initialize();
@@ -233,7 +233,7 @@ We want to test the AsteroidManager class here, but it has a few dependencies th
 
 When you start running a test through Unity's EditorTestRunner window, Unity will open up a new empty scene and run the tests there, and then Unity will re-open your previously open scenes once the tests complete.  This is great because any new game objects you create will not affect any currently open scenes (more details <a href="https://docs.unity3d.com/550/Documentation/Manual/testing-editortestsrunner.html">here</a>.)
 
-Before each one of your test methods are run, ZenjectIntegrationTestFixture will create a new SceneContext in this empty scene.  The Container that you reference in your tests refers to the container used by this new temporary SceneContext.  After you have finished installing all your bindings on the Container, either by using [SetUp] methods or from within your test method, you need to call ZenjectIntegrationTestFixture.Initialize().  This will resolve all the NonLazy bindings and also trigger IInitializable.Initialize for all classes that are bound to IInitializable.  If you have common fields on your test marked with [Inject] then these fields are also filled in at this time.  Alternatively, you can diretcly call `Container.Resolve<>` from within your test methods to get the classes you want to run tests on.
+Before each one of your test methods are run, ZenjectIntegrationTestFixture will create a new SceneContext in this empty scene.  The Container that you reference in your tests refers to the container used by this new temporary SceneContext.  After you have finished installing all your bindings on the Container, either by using [SetUp] methods or from within your test method, you need to call ZenjectIntegrationTestFixture.Initialize().  This will resolve all the NonLazy bindings and also trigger IInitializable.Initialize for all classes that are bound to IInitializable.  If you have common fields on your test marked with [Inject] then these fields are also filled in at this time.  Alternatively, you can directly call `Container.Resolve<>` from within your test methods to get the classes you want to run tests on.
 
 You can also run zenject validation on your test by adding a `[ValidateOnly]` attribute above your test method (as shown in example above).  This will cause the test to not instantiate any of your bindings and instead just verify that the configuration of your Container is valid.  However, you could also just as easily rely on configuration errors to be caught when running normal tests too, so it probably has limited use for you.
 

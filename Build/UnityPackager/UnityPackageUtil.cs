@@ -9,7 +9,7 @@ namespace Zenject
         public static void CreateUnityPackage()
         {
             var outPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Zenject.unitypackage"));
-            AssetDatabase.ExportPackage("Assets/Zenject", outPath, ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
+            AssetDatabase.ExportPackage("Assets/Plugins/Zenject", outPath, ExportPackageOptions.Recurse | ExportPackageOptions.IncludeDependencies);
             Debug.Log("Exported to " + outPath);
         }
     }

@@ -53,7 +53,7 @@ Note that by default, Auto-mocking is not enabled in Zenject.  If you wish to us
 After extracting the auto mocking package it is just a matter of using the following syntax to mock out various parts of your project:
 
 ```csharp
-Container.Bind<IFoo>().ToMock();
+Container.Bind<IFoo>().FromMock();
 ```
 
 However, this approach will not allow you to take advantage of the advanced features of Moq.  For more advanced usages, see the documentation for Moq

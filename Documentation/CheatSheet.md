@@ -10,17 +10,10 @@ For more examples, you may also be interested in reading some of the Unit tests 
 // Create a new instance of Foo for every class that asks for it
 Container.Bind<Foo>().AsTransient();
 
-// This is equivalent since AsTransient is the default
-Container.Bind<Foo>();
-
 // Create a new instance of Foo for every class that asks for an IFoo
 Container.Bind<IFoo>().To<Foo>().AsTransient();
 
-// This is equivalent since Transient is the default
-Container.Bind<IFoo>().To<Foo>();
-
-// Non generic versions
-Container.Bind(typeof(IFoo)).AsTransient();
+// Non generic version
 Container.Bind(typeof(IFoo)).To(typeof(Foo)).AsTransient();
 
 ///////////// AsSingle
@@ -38,12 +31,15 @@ Container.Bind<IFoo2>().To<Foo>().AsSingle();
 
 // Non generic versions
 Container.Bind(typeof(Foo)).AsSingle();
-Container.Bind(typeof(IFoo)).AsSingle(typeof(Foo));
+Container.Bind(typeof(IFoo)).To(typeof(Foo)).AsSingle();
 
-///////////// BindAllInterfaces
+// Or, as one bind statement
+Container.Bind(typeof(Foo), typeof(IFoo)).To(typeof(Foo)).AsSingle();
+
+///////////// BindInterfaces
 
 // Bind all interfaces that Foo implements to a new singleton of type Foo
-Container.BindAllInterfaces<Foo>().To<Foo>().AsSingle();
+Container.BindInterfacesTo<Foo>().AsSingle();
 
 // So for example if Foo implements ITickable and IInitializable then the above
 // line is equivalent to this:
@@ -127,18 +123,18 @@ Container.Bind<Bar>().FromResolveGetter<Foo>(foo => foo.GetBar());
 // Another example using values
 Container.Bind<string>().FromResolveGetter<Foo>(foo => foo.GetTitle());
 
-///////////// FromGameObject (singleton)
+///////////// FromNewComponentOnNewGameObject (singleton)
 
 // Create a new game object at the root of the scene, add the Foo MonoBehaviour to it, and name it "Foo"
-Container.Bind<Foo>().FromGameObject().AsSingle();
+Container.Bind<Foo>().FromNewComponentOnNewGameObject().AsSingle();
 
 // You can also specify the game object name to use using WithGameObjectName
-Container.Bind<Foo>().FromGameObject().WithGameObjectName("Foo1").AsSingle();
+Container.Bind<Foo>().FromNewComponentOnNewGameObject().WithGameObjectName("Foo1").AsSingle();
 
 // Bind to an interface instead
-Container.Bind<IFoo>().To<Foo>().FromGameObject().AsSingle();
+Container.Bind<IFoo>().To<Foo>().FromNewComponentOnNewGameObject().AsSingle();
 
-///////////// FromPrefab (singleton)
+///////////// FromComponentInNewPrefab (singleton)
 
 // Create a new game object at the root of the scene using the given prefab
 // It is assumed that the Foo is a MonoBehaviour here and that Foo has been
@@ -146,10 +142,10 @@ Container.Bind<IFoo>().To<Foo>().FromGameObject().AsSingle();
 // After zenject creates a new GameObject from the given prefab, it will
 // search the prefab for a component of type 'Foo' and return that
 GameObject fooPrefab;
-Container.Bind<Foo>().FromPrefab(fooPrefab).AsSingle();
+Container.Bind<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
 
 // Bind to interface instead
-Container.Bind<IFoo>().To<Foo>().FromPrefab(fooPrefab).AsSingle();
+Container.Bind<IFoo>().To<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
 
 // In this example we use AsSingle but with different components
 // Note here that only one instance of the given prefab will be
@@ -158,21 +154,21 @@ Container.Bind<IFoo>().To<Foo>().FromPrefab(fooPrefab).AsSingle();
 // For this to work, there must be both a Foo MonoBehaviour and
 // a Bar MonoBehaviour somewhere on the prefab
 GameObject prefab;
-Container.Bind<Foo>().FromPrefab(prefab).AsSingle();
-Container.Bind<Bar>().FromPrefab(prefab).AsSingle();
+Container.Bind<Foo>().FromComponentInNewPrefab(prefab).AsSingle();
+Container.Bind<Bar>().FromComponentInNewPrefab(prefab).AsSingle();
 
-///////////// FromPrefab (Transient)
+///////////// FromComponentInNewPrefab (Transient)
 
 // Instantiate a new copy of 'fooPrefab' every time an instance of Foo is
 // requested by a constructor parameter, injected field, etc.
 GameObject fooPrefab = null;
-Container.Bind<Foo>().FromPrefab(fooPrefab);
+Container.Bind<Foo>().FromComponentInNewPrefab(fooPrefab);
 
 // Again, this is equivalent since AsTransient is the default
-Container.Bind<Foo>().FromPrefab(fooPrefab).AsTransient();
+Container.Bind<Foo>().FromComponentInNewPrefab(fooPrefab).AsTransient();
 
 // Bind to interface instead
-Container.Bind<IFoo>().To<Foo>().FromPrefab(fooPrefab);
+Container.Bind<IFoo>().To<Foo>().FromComponentInNewPrefab(fooPrefab);
 
 ///////////// Identifiers
 
@@ -290,15 +286,15 @@ Container.BindInstance(foo2).When(c => c.ParentContexts.Where(x => x.MemberType 
 // This will result in IBar, IFoo, and Foo, all being bound to the same instance of
 // Foo which is assume to exist somewhere on the given prefab
 GameObject fooPrefab;
-Container.Bind<Foo>().FromPrefab(fooPrefab).AsSingle();
+Container.Bind<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
 Container.Bind<IBar>().To<Foo>().FromResolve();
 Container.Bind<IFoo>().To<IBar>().FromResolve();
 
 // This will result in the same behaviour as the above
 GameObject fooPrefab = null;
-Container.Bind<Foo>().FromPrefab(fooPrefab).AsSingle();
-Container.Bind<IBar>().To<Foo>().FromPrefab(fooPrefab).AsSingle();
-Container.Bind<IFoo>().To<Foo>().FromPrefab(fooPrefab).AsSingle();
+Container.Bind<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
+Container.Bind<IBar>().To<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
+Container.Bind<IFoo>().To<Foo>().FromComponentInNewPrefab(fooPrefab).AsSingle();
 
 ///////////// Rebind
 
